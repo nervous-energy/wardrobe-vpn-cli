@@ -63,20 +63,21 @@ On first visit to http://<droplet-ip>:51821/ you’ll see wg-easy’s setup scre
 
 ## DigitalOcean Token Scopes
 Create a Personal Access Token with following scopes:
-- - account -- READ
-- - actions -- READ
-- - droplet -- FULL
-- - firewall -- FULL
-- - image -- READ
-- - region -- READ
-- - project -- READ
-- - sizes -- READ
-- - snapshot -- READ
-- - ssh_key -- FULL
-- - tag -- FULL
-- - vpc -- READ
-- DigitalOceans's UI helps fill in any missing scopes
-- Store it somewhere safe. The CLI only passes it to Terraform via environment variables.
+- account -- READ
+- actions -- READ
+- droplet -- FULL
+- firewall -- FULL
+- image -- READ
+- region -- READ
+- project -- READ
+- sizes -- READ
+- snapshot -- READ
+- ssh_key -- FULL
+- tag -- FULL
+- vpc -- READ
+
+DigitalOceans's UI helps fill in any missing scopes.
+Store it somewhere safe. The CLI only passes it to Terraform via environment variables.
 
 
 ## Troubleshooting
