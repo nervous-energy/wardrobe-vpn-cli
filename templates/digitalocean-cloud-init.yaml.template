@@ -1,0 +1,206 @@
+#cloud-config
+# WireGuard VPN Server Cloud-Init Configuration  
+# Optimized for resource management and unattended operation
+
+# Update package lists and install required packages
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - docker.io
+  - docker-compose
+  - logrotate
+  - htop
+
+# Configure system settings
+timezone: UTC
+
+# Configure SSH access for root user
+users:
+  - name: root
+    ssh_authorized_keys:
+      - ${SSH_PUBLIC_KEY}
+
+# Set up automatic cleanup and resource management
+write_files:
+  # Deployment metadata for user reference
+  - path: /etc/wardrobe-vpn.info
+    content: |
+      WARDROBE VPN DEPLOYMENT INFO
+      ============================
+      Deployment Name: ${DEPLOYMENT_NAME}
+      Created: ${CREATED_AT}
+      Cloud Provider: DigitalOcean
+      Region: ${REGION}
+      This file contains static metadata only.
+      To view current network info (public IP, Admin UI URL), run:
+      /usr/local/bin/vpn-info.sh
+      
+      View this info: cat /etc/wardrobe-vpn.info
+    permissions: '0644'
+  
+  # Runtime script to view current server info:
+  - path: /usr/local/bin/vpn-info.sh
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      IMDS_IP="http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address"
+      PUB_IP="$(curl -fsS "$IMDS_IP" || true)"
+      if [ -z "$PUB_IP" ]; then
+        echo "Public IPv4 not available from IMDS."
+        exit 1
+      fi
+      echo "Current Public IPv4 : $PUB_IP"
+      echo "Admin UI (HTTP)     : http://$PUB_IP:51821"
+      echo "VPN UDP Port        : 51820"
+      echo
+      echo "Tip: Once connected to the VPN, the Admin UI is also reachable at http://10.8.0.1:51821"
+    permissions: '0755'
+  
+  
+  # Secure ssh - key only
+  - path: /etc/ssh/sshd_config.d/wardrobe.conf
+    permissions: '0644'
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin prohibit-password
+      # Optional belt-and-braces:
+      # PubkeyAuthentication yes
+      # ChallengeResponseAuthentication no
+
+  # Docker daemon configuration for log limits
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        },
+        "storage-driver": "overlay2"
+      }
+    permissions: '0644'
+  
+  # Log rotation configuration for system logs
+  - path: /etc/logrotate.d/wardrobe-vpn
+    content: |
+      /var/log/syslog /var/log/auth.log /var/log/kern.log {
+        daily
+        missingok
+        rotate 7
+        compress
+        delaycompress
+        notifempty
+        create 0644 syslog adm
+      }
+    permissions: '0644'
+  
+  # Weekly cleanup script - not using absolute path for Cron
+  - path: /usr/local/bin/vpn-cleanup.sh
+    content: |
+      #!/bin/bash
+      # VPN server maintenance script
+      
+      # Clean Docker system (unused images, containers, networks)
+      /usr/bin/docker system prune -f --volumes
+      
+      # Clean package cache
+      /usr/bin/apt-get clean
+      /usr/bin/apt-get autoremove -y
+      
+      # Clean temporary files
+      /usr/bin/find /tmp -type f -atime +7 -delete 2>/dev/null || true
+      
+      # Log cleanup completion
+      logger "VPN-SERVER: Weekly cleanup completed"
+    permissions: '0755'
+  
+  # Memory monitoring script
+  - path: /usr/local/bin/vpn-monitor.sh
+    content: |
+      #!/bin/bash
+      # Resource monitoring for VPN server
+      
+      export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+      MEMORY_USAGE=$(free | grep Mem | awk '{printf("%.0f", $3/$2 * 100.0)}')
+      DISK_USAGE=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
+      
+      # Log if memory usage > 80%
+      if [ "$MEMORY_USAGE" -gt 80 ]; then
+        logger "VPN-SERVER: High memory usage: ${MEMORY_USAGE}%"
+      fi
+      
+      # Log if disk usage > 85%  
+      if [ "$DISK_USAGE" -gt 85 ]; then
+        logger "VPN-SERVER: High disk usage: ${DISK_USAGE}%"
+        # Emergency cleanup
+        /usr/bin/docker system prune -f --volumes
+      fi
+    permissions: '0755'
+  
+  # Set up maintenance cron jobs
+  - path: /etc/cron.d/wardrobe-cleanup
+    permissions: '0644'
+    content: |
+      0 3 * * 0 root /usr/local/bin/vpn-cleanup.sh
+
+  - path: /etc/cron.d/wardrobe-monitor
+    permissions: '0644'
+    content: |
+      */30 * * * * root /usr/local/bin/vpn-monitor.sh
+
+# Commands to run after package installation
+runcmd:
+  # Create dir for WireGuard config
+  - mkdir -p /root/.wg-easy
+
+  # Restart ssh to add security
+  - systemctl restart ssh
+
+  # Restart Docker to apply daemon configuration
+  - systemctl restart docker
+  - systemctl enable docker
+  
+  # Disable UFW (using DigitalOcean cloud firewall instead)
+  - systemctl stop ufw || true
+  - systemctl disable ufw || true
+  
+
+  # Deploy wg-easy v15 with standard WireGuard configuration
+  # Resource limits: 512MB RAM, capabilities: NET_ADMIN + SYS_MODULE
+  # Network sysctls and environment per WireGuard documentation
+  # 'INSECURE=TRUE' enables admin UI to be accessed after deployment without TLS
+  # WG_HOST curl is an IMDS call to get the IP - for floating / static IP a different approach would be needed
+  # Important: expose /dev/net/tun and mount /lib/modules so wg-easy can create the wg0 interface
+  - >
+    docker run -d 
+    --name=wg-easy 
+    --restart=unless-stopped 
+    --memory=512m --memory-swap=768m 
+    --cap-add=NET_ADMIN --cap-add=SYS_MODULE
+    --device /dev/net/tun:/dev/net/tun 
+    -v /lib/modules:/lib/modules:ro  
+    -e INSECURE=true 
+    -e WG_HOST=$(curl -fsS http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address) 
+    -e WG_MTU=1420
+    -v /root/.wg-easy:/etc/wireguard 
+    -p 51820:51820/udp 
+    -p 51821:51821/tcp 
+    --sysctl="net.ipv4.conf.all.src_valid_mark=1" 
+    --sysctl="net.ipv4.ip_forward=1" 
+    ghcr.io/wg-easy/wg-easy:15
+
+# Final message displayed when setup is complete
+final_message: |
+  VPN server setup complete!
+  
+  Security: Cloud firewall configured
+  Monitoring: Resource monitoring active  
+  Maintenance: Weekly cleanup scheduled
+  
+  For Admin info run: /usr/local/bin/vpn-info.sh
+  On first visit, you'll be prompted to create an Admin account.
+  
+  Server details: cat /etc/wardrobe-vpn.info

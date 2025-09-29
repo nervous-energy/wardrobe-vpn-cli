@@ -1,0 +1,55 @@
+### OS-specific
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+### Editors / IDEs
+.vscode/
+.idea/
+.history/
+.fleet/
+*.code-workspace
+
+### Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+.python-version
+
+### Terraform (generated locally by this tool)
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+*.tfplan
+/tf_output/
+
+### Logs & misc
+logs/
+*.log
+*.tmp
+*.swp
+*.swo
+*~
