@@ -1,6 +1,7 @@
 # WardrobeVPN (free edition) - Assemble your own VPN
 
-## BLUF:
+
+## BLUF / TL;DR:
 This is a CLI tool that lets you provision a WireGuard VPN server on DigitalOcean. 
 - **DigitalOcean Droplet**: Ubuntu 24.04 server (1 vCPU, 1GB RAM) 
 - **WireGuard VPN**: Running on UDP port 51820
@@ -13,12 +14,12 @@ This is a CLI tool that lets you provision a WireGuard VPN server on DigitalOcea
 > **Use at your own risk!** 
 
 ---
-#### Why 'Wardrobe'?
+
+## Why 'Wardrobe'?
 - To evoke CS Lewis' portal to another world!
 - ...and also Ikea's self-assembly excellence
----
 
----
+
 ## Dependencies
 - Python 3.10+
 - Terraform 1.5+
@@ -57,14 +58,24 @@ On first visit to http://<droplet-ip>:51821/ you’ll see wg-easy’s setup scre
 ## Practical Notes
 - This app is minimalist but has some guardrails to support you, such as checking for any existing wardrobeVPN droplets.
 - You'll be asked to confirm before any paid infrastructure is deployed.
-- Use DigitalOcean's webui to manage / delete droplets and firewalls created by this tool.
-- - Note that firewalls are created and managed under the 'Networking tab'
+- Use DigitalOcean's webui to manage / delete droplets and firewalls created by this tool. (Note that firewalls are created and managed under the 'Networking tab' in DO)
 
 
 ## DigitalOcean Token Scopes
-Create a Personal Access Token with:
-- read and write (required to create/attach SSH keys, droplets, and firewalls).
-- DO's UI helps fill in any missing scopes
+Create a Personal Access Token with following scopes:
+- - account -- READ
+- - actions -- READ
+- - droplet -- FULL
+- - firewall -- FULL
+- - image -- READ
+- - region -- READ
+- - project -- READ
+- - sizes -- READ
+- - snapshot -- READ
+- - ssh_key -- FULL
+- - tag -- FULL
+- - vpc -- READ
+- DigitalOceans's UI helps fill in any missing scopes
 - Store it somewhere safe. The CLI only passes it to Terraform via environment variables.
 
 
