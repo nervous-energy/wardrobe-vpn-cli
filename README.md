@@ -1,5 +1,6 @@
 # WardrobeVPN (free edition) - Assemble your own VPN
 
+Wardrobe is the free and open source pre-cursor of Ceres VPN [https://cereslabs.org](https://cereslabs.org), a GUI tool that enables you to deploy your own WireGuard VPN server. 
 
 ## BLUF / TL;DR:
 This is a CLI tool that lets you provision a WireGuard VPN server on DigitalOcean. 
